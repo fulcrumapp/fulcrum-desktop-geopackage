@@ -1,0 +1,9 @@
+{
+  "name": "fulcrum-sync-custom-plugin",
+  "version": "1.0.0",
+  "main": "plugin.js",
+  "license": "MIT",
+  "dependencies": {
+    "fulcrum-sync-plugin": "^1.0.1"
+  }
+}
