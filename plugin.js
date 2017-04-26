@@ -114,12 +114,13 @@ export default class SQLitePlugin extends Plugin {
 
       SELECT AddGeometryColumn('${tableName}', '_geom', 'POINT', 4326, 0, 0);
 
-      UPDATE ${this.db.ident(tableName)} SET _geom = MakePoint(_longitude, _latitude, 4326);
-
-      DELETE FROM gpkg_contents WHERE table_name='${tableName}';
+      UPDATE ${this.db.ident(tableName)}
+      SET _geom = MakePoint(_longitude, _latitude, 4326)
+      WHERE _longitude IS NOT NULL AND _latitude IS NOT NULL;
 
       INSERT INTO gpkg_contents (table_name, data_type, identifier, srs_id)
-      SELECT '${tableName}', 'features', '${tableName}', 4326;
+      SELECT '${tableName}', 'features', '${tableName}', 4326
+      WHERE NOT EXISTS (SELECT 1 FROM gpkg_contents WHERE table_name = '${tableName}');
     `;
 
     await this.run(sql);
