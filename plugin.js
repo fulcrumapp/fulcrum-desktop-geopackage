@@ -31,10 +31,12 @@ export default class SQLitePlugin extends Plugin {
     app.mkdirp('sqlite');
 
     const options = {
-      file: path.join(app.dir('sqlite'), app.args.org + '.db')
+      file: path.join(app.dir('sqlite'), app.args.org + '.gpkg')
     };
 
     this.db = await app.api.SQLite.open({...defaultDatabaseOptions, ...options});
+
+    await this.run('SELECT InitSpatialMetadata()');
 
     app.on('form:save', this.onFormSave);
     app.on('records:finish', this.onRecordsFinished);
@@ -67,22 +69,57 @@ export default class SQLitePlugin extends Plugin {
 
     await this.run(`ATTACH DATABASE '${rawPath}' as 'app'`);
 
-    await this.updateTable(form.name, `account_${account.rowID}_form_${form.rowID}_view_full`);
+    await this.updateTable(form.name, `account_${account.rowID}_form_${form.rowID}_view_full`, null);
 
     for (const repeatable of form.elementsOfType('Repeatable')) {
       const tableName = `${form.name} - ${repeatable.dataName}`;
 
-      await this.updateTable(tableName, `account_${account.rowID}_form_${form.rowID}_${repeatable.key}_view_full`);
+      await this.updateTable(tableName, `account_${account.rowID}_form_${form.rowID}_${repeatable.key}_view_full`, repeatable);
     }
 
     await this.run(`DETACH DATABASE 'app'`);
   }
 
-  updateTable = async (tableName, sourceTableName) => {
-    const drop = `DROP TABLE IF EXISTS ${this.db.ident(tableName)};`;
-    const create = `CREATE TABLE ${this.db.ident(tableName)} AS SELECT * FROM app.${sourceTableName};`;
+  updateTable = async (tableName, sourceTableName, repeatable) => {
+    const tempTableName = sourceTableName + '_tmp';
 
-    await this.run(drop);
-    await this.run(create);
+    const dropTemplate = `DROP TABLE IF EXISTS ${this.db.ident(tempTableName)};`;
+
+    await this.run(dropTemplate);
+
+    const createTemplateTable = `CREATE TABLE ${this.db.ident(tempTableName)} AS SELECT * FROM app.${sourceTableName} WHERE 1=0;`;
+
+    await this.run(createTemplateTable);
+
+    const result = await this.db.get(`SELECT sql FROM sqlite_master WHERE tbl_name = '${tempTableName}'`);
+
+    let create = result.sql.replace(tempTableName, this.db.ident(tableName));
+
+    if (repeatable == null) {
+      create = create.replace('_record_id TEXT', '_record_id TEXT PRIMARY KEY');
+    } else {
+      create = create.replace('_child_record_id TEXT', '_child_record_id TEXT PRIMARY KEY');
+    }
+
+    const sql = `
+      DROP TABLE IF EXISTS ${this.db.ident(tableName)};
+
+      ${ create };
+
+      INSERT INTO ${this.db.ident(tableName)} SELECT * FROM app.${sourceTableName};
+
+      DELETE FROM gpkg_geometry_columns WHERE table_name='${tableName}';
+
+      SELECT AddGeometryColumn('${tableName}', '_geom', 'POINT', 4326, 0, 0);
+
+      UPDATE ${this.db.ident(tableName)} SET _geom = MakePoint(_longitude, _latitude, 4326);
+
+      DELETE FROM gpkg_contents WHERE table_name='${tableName}';
+
+      INSERT INTO gpkg_contents (table_name, data_type, identifier, srs_id)
+      SELECT '${tableName}', 'features', '${tableName}', 4326;
+    `;
+
+    await this.run(sql);
   }
 }
