@@ -93,6 +93,8 @@ export default class SQLitePlugin extends Plugin {
 
     const result = await this.db.get(`SELECT sql FROM sqlite_master WHERE tbl_name = '${tempTableName}'`);
 
+    await this.run(dropTemplate);
+
     let create = result.sql.replace(tempTableName, this.db.ident(tableName));
 
     if (repeatable == null) {
