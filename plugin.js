@@ -92,15 +92,19 @@ export default class SQLitePlugin extends Plugin {
     await this.run(createTemplateTable);
 
     const result = await this.db.get(`SELECT sql FROM sqlite_master WHERE tbl_name = '${tempTableName}'`);
+    const {columns} = await this.db.execute(`SELECT * FROM app.${sourceTableName} WHERE 1=0;`);
 
     await this.run(dropTemplate);
 
-    let create = result.sql.replace(tempTableName, this.db.ident(tableName));
+    const create = result.sql.replace(tempTableName, this.db.ident(tableName))
+                             .replace('(', ' (\n_id INTEGER PRIMARY KEY AUTOINCREMENT, ');
 
-    if (repeatable == null) {
-      create = create.replace('_record_id TEXT', '_record_id TEXT PRIMARY KEY');
-    } else {
-      create = create.replace('_child_record_id TEXT', '_child_record_id TEXT PRIMARY KEY');
+    const columnNames = columns.map(o => o.name);
+
+    let orderBy = 'ORDER BY _record_id';
+
+    if (repeatable != null) {
+      orderBy = 'ORDER BY _child_record_id';
     }
 
     const sql = `
@@ -108,7 +112,10 @@ export default class SQLitePlugin extends Plugin {
 
       ${ create };
 
-      INSERT INTO ${this.db.ident(tableName)} SELECT * FROM app.${sourceTableName};
+      INSERT INTO ${this.db.ident(tableName)} (${columnNames.join(', ')})
+      SELECT ${columnNames.join(', ')}
+      FROM app.${sourceTableName}
+      ${orderBy};
 
       DELETE FROM gpkg_geometry_columns WHERE table_name='${tableName}';
 
