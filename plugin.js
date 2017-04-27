@@ -8,6 +8,11 @@ export default class SQLitePlugin extends Plugin {
       .demandOption([ 'org' ])
       .argv;
 
+    if (this.args.sql) {
+      await this.runSQL(this.args.sql);
+      return;
+    }
+
     const account = await app.fetchAccount(this.args.org);
 
     if (account) {
@@ -36,7 +41,7 @@ export default class SQLitePlugin extends Plugin {
 
     this.db = await app.api.SQLite.open({...defaultDatabaseOptions, ...options});
 
-    await this.run('SELECT InitSpatialMetadata()');
+    await this.enableSpatiaLite(this.db);
 
     app.on('form:save', this.onFormSave);
     app.on('records:finish', this.onRecordsFinished);
@@ -119,11 +124,14 @@ export default class SQLitePlugin extends Plugin {
 
       DELETE FROM gpkg_geometry_columns WHERE table_name='${tableName}';
 
-      SELECT AddGeometryColumn('${tableName}', '_geom', 'POINT', 4326, 0, 0);
+      INSERT INTO gpkg_geometry_columns
+      (table_name, column_name, geometry_type_name, srs_id, z, m)
+      VALUES ('${tableName}', '_geom', 'POINT', 4326, 0, 0);
+
+      ALTER TABLE ${this.db.ident(tableName)} ADD _geom BLOB;
 
       UPDATE ${this.db.ident(tableName)}
-      SET _geom = MakePoint(_longitude, _latitude, 4326)
-      WHERE _longitude IS NOT NULL AND _latitude IS NOT NULL;
+      SET _geom = gpkgMakePoint(COALESCE(_longitude, 0), COALESCE(_latitude, 0), 4326);
 
       INSERT INTO gpkg_contents (table_name, data_type, identifier, srs_id)
       SELECT '${tableName}', 'features', '${tableName}', 4326
@@ -131,5 +139,35 @@ export default class SQLitePlugin extends Plugin {
     `;
 
     await this.run(sql);
+  }
+
+  async enableSpatiaLite(db) {
+    await new Promise((resolve, reject) => {
+      db.database.loadSpatiaLite((err) => err ? reject(err) : resolve());
+    });
+
+    const check = await this.db.all('SELECT CheckGeoPackageMetaData() AS result');
+
+    if (check[0].result !== 1) {
+      const rows = await this.db.all('SELECT gpkgCreateBaseTables()');
+    }
+
+    const mode = await this.db.all('SELECT EnableGpkgMode() AS enabled, GetGpkgMode() AS mode');
+
+    if (mode[0].mode !== 1) {
+      throw new Error('Unexpected error verifying the GPKG mode');
+    }
+  }
+
+  async runSQL(sql) {
+    let result = null;
+
+    try {
+      result = await this.db.all(sql);
+    } catch (ex) {
+      result = {error: ex.message};
+    }
+
+    console.log(JSON.stringify(result));
   }
 }
