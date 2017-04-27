@@ -112,16 +112,44 @@ export default class SQLitePlugin extends Plugin {
       orderBy = 'ORDER BY _child_record_id';
     }
 
-    const sql = `
+    const allSQL = `
       DROP TABLE IF EXISTS ${this.db.ident(tableName)};
 
       ${ create };
 
-      INSERT INTO ${this.db.ident(tableName)} (${columnNames.join(', ')})
-      SELECT ${columnNames.join(', ')}
-      FROM app.${sourceTableName}
-      ${orderBy};
+      ALTER TABLE ${this.db.ident(tableName)}
+      ADD _created_by_email TEXT;
 
+      ALTER TABLE ${this.db.ident(tableName)}
+      ADD _updated_by_email TEXT;
+
+      INSERT INTO ${this.db.ident(tableName)} (${columnNames.join(', ')}, _created_by_email, _updated_by_email)
+      SELECT ${columnNames.map(o => 't.' + o).join(', ')}, mc.email AS _created_by_email, mu.email AS _updated_by_email
+      FROM app.${sourceTableName} t
+      LEFT JOIN memberships mc ON t._created_by_id = mc.user_resource_id
+      LEFT JOIN memberships mu ON t._updated_by_id = mu.user_resource_id
+      ${orderBy};
+    `;
+
+    await this.run(allSQL);
+
+    if (repeatable == null) {
+      const parentSQL = `
+        ALTER TABLE ${this.db.ident(tableName)}
+        ADD _assigned_to_email TEXT;
+
+        ALTER TABLE ${this.db.ident(tableName)}
+        ADD _project_name TEXT;
+
+        UPDATE ${this.db.ident(tableName)}
+        SET _assigned_to_email = (SELECT email FROM app.memberships m WHERE m.user_resource_id = ${this.db.ident(tableName)}._assigned_to_id),
+        _project_name = (SELECT name FROM app.projects p WHERE p.resource_id = ${this.db.ident(tableName)}._project_id);
+      `;
+
+      await this.run(parentSQL);
+    }
+
+    const geomSQL = `
       DELETE FROM gpkg_geometry_columns WHERE table_name='${tableName}';
 
       INSERT INTO gpkg_geometry_columns
@@ -138,7 +166,7 @@ export default class SQLitePlugin extends Plugin {
       WHERE NOT EXISTS (SELECT 1 FROM gpkg_contents WHERE table_name = '${tableName}');
     `;
 
-    await this.run(sql);
+    await this.run(geomSQL);
   }
 
   async enableSpatiaLite(db) {
