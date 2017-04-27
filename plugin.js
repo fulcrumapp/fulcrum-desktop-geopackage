@@ -131,7 +131,7 @@ export default class SQLitePlugin extends Plugin {
       ALTER TABLE ${this.db.ident(tableName)} ADD _geom BLOB;
 
       UPDATE ${this.db.ident(tableName)}
-      SET _geom = gpkgMakePoint(COALESCE(_longitude, 0), COALESCE(_latitude, 0), 4326);
+      SET _geom = gpkgMakePoint(_longitude, _latitude, 4326);
 
       INSERT INTO gpkg_contents (table_name, data_type, identifier, srs_id)
       SELECT '${tableName}', 'features', '${tableName}', 4326
