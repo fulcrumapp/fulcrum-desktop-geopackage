@@ -1,19 +1,18 @@
-import Plugin from 'fulcrum-sync-plugin';
-import {format} from 'util';
 import path from 'path';
+import { SQLite } from 'fulcrum';
 
-export default class SQLitePlugin extends Plugin {
-  async runTask({app, yargs}) {
-    this.args = yargs.usage('Usage: sqlite --org [org]')
+export default class {
+  async task() {
+    fulcrum.yargs.usage('Usage: sqlite --org [org]')
       .demandOption([ 'org' ])
       .argv;
 
-    if (this.args.sql) {
-      await this.runSQL(this.args.sql);
+    if (fulcrum.args.sql) {
+      await this.runSQL(fulcrum.args.sql);
       return;
     }
 
-    const account = await app.fetchAccount(this.args.org);
+    const account = await fulcrum.fetchAccount(fulcrum.args.org);
 
     if (account) {
       const forms = await account.findActiveForms({});
@@ -22,32 +21,32 @@ export default class SQLitePlugin extends Plugin {
         await this.updateForm(form, account);
       }
     } else {
-      console.error('Unable to find account', this.args.org);
+      console.error('Unable to find account', fulcrum.args.org);
     }
   }
 
-  async initialize({app}) {
+  async activate() {
     const defaultDatabaseOptions = {
       wal: true,
       autoVacuum: true,
       synchronous: 'off'
     };
 
-    app.mkdirp('sqlite');
+    fulcrum.mkdirp('geopackage');
 
     const options = {
-      file: path.join(app.dir('sqlite'), app.args.org + '.gpkg')
+      file: path.join(fulcrum.dir('geopackage'), fulcrum.args.org + '.gpkg')
     };
 
-    this.db = await app.api.SQLite.open({...defaultDatabaseOptions, ...options});
+    this.db = await SQLite.open({...defaultDatabaseOptions, ...options});
 
     await this.enableSpatiaLite(this.db);
 
-    app.on('form:save', this.onFormSave);
-    app.on('records:finish', this.onRecordsFinished);
+    fulcrum.on('form:save', this.onFormSave);
+    fulcrum.on('records:finish', this.onRecordsFinished);
   }
 
-  async dispose() {
+  async deactivate() {
     await this.db.close();
   }
 
@@ -70,7 +69,7 @@ export default class SQLitePlugin extends Plugin {
   }
 
   updateForm = async (form, account) => {
-    const rawPath = path.join(this.app.dir('data'), 'fulcrum.db');
+    const rawPath = path.join(fulcrum.dir('data'), 'fulcrum.db');
 
     await this.run(`ATTACH DATABASE '${rawPath}' as 'app'`);
 
@@ -171,7 +170,10 @@ export default class SQLitePlugin extends Plugin {
 
   async enableSpatiaLite(db) {
     await new Promise((resolve, reject) => {
-      db.database.loadSpatiaLite((err) => err ? reject(err) : resolve());
+      const spatialitePath = process.env.DEVELOPMENT ? path.join('.', 'resources', 'spatialite', 'mac', 'mod_spatialite')
+                                                     : path.join(path.dirname(process.execPath), '..', 'Resources', 'spatialite', 'mac', 'mod_spatialite');
+
+      db.database.loadExtension(spatialitePath, (err) => err ? reject(err) : resolve());
     });
 
     const check = await this.db.all('SELECT CheckGeoPackageMetaData() AS result');
