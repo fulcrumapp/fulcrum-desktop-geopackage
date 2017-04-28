@@ -1,4 +1,4 @@
-## Fulcrum Sync SQLite
+## Fulcrum Sync GeoPackage
 
 Sync Fulcrum data to a GeoPackage database.
 
