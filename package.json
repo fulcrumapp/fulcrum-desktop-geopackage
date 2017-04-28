@@ -1,5 +1,5 @@
 {
-  "name": "fulcrum-sync-custom-plugin",
+  "name": "fulcrum-sync-geopackage",
   "version": "1.0.0",
   "main": "plugin.js",
   "license": "MIT",
