@@ -1,15 +1,15 @@
 ## Fulcrum Sync SQLite
 
-Sync Fulcrum data to a SQLite database.
+Sync Fulcrum data to a GeoPackage database.
 
 ### Installation
 
 ```sh
-./run install-plugin --git https://github.com/fulcrumapp/fulcrum-sync-sqlite
+./run install-plugin --url https://github.com/fulcrumapp/fulcrum-sync-geopackage
 ```
 
 ### Create the database
 
 ```
-./run task sqlite --org 'Fulcrum Account Name'
+fulcrum geopackage --org 'Fulcrum Account Name'
 ```
