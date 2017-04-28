@@ -2,10 +2,23 @@ import path from 'path';
 import { SQLite } from 'fulcrum';
 
 export default class {
-  async task() {
-    fulcrum.yargs.usage('Usage: sqlite --org [org]')
-      .demandOption([ 'org' ])
-      .argv;
+  async task(cli) {
+    return cli.command({
+      command: 'sqlite',
+      desc: 'create a sqlite database for an organization',
+      builder: {
+        org: {
+          desc: 'organization name',
+          required: true,
+          type: 'string'
+        }
+      },
+      handler: this.runCommand
+    });
+  }
+
+  runCommand = async () => {
+    await this.activate();
 
     if (fulcrum.args.sql) {
       await this.runSQL(fulcrum.args.sql);
@@ -47,7 +60,9 @@ export default class {
   }
 
   async deactivate() {
-    await this.db.close();
+    if (this.db) {
+      await this.db.close();
+    }
   }
 
   run = (sql) => {
