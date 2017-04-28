@@ -4,8 +4,8 @@ import { SQLite } from 'fulcrum';
 export default class {
   async task(cli) {
     return cli.command({
-      command: 'sqlite',
-      desc: 'create a sqlite database for an organization',
+      command: 'geopackage',
+      desc: 'create a geopackage database for an organization',
       builder: {
         org: {
           desc: 'organization name',
