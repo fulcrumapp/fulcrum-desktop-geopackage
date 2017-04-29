@@ -118,7 +118,7 @@ export default class {
     const create = result.sql.replace(tempTableName, this.db.ident(tableName))
                              .replace('(', ' (\n_id INTEGER PRIMARY KEY AUTOINCREMENT, ');
 
-    const columnNames = columns.map(o => o.name);
+    const columnNames = columns.map(o => this.db.ident(o.name));
 
     let orderBy = 'ORDER BY _record_id';
 
