@@ -185,8 +185,20 @@ export default class {
 
   async enableSpatiaLite(db) {
     await new Promise((resolve, reject) => {
-      const spatialitePath = process.env.DEVELOPMENT ? path.join('.', 'resources', 'spatialite', 'mac', 'mod_spatialite')
-                                                     : path.join(path.dirname(process.execPath), '..', 'Resources', 'spatialite', 'mac', 'mod_spatialite');
+      let spatialitePath = null;
+
+      // the different platforms and configurations require various different load paths for the shared library
+      if (process.env.MOD_SPATIALITE) {
+        spatialitePath = process.env.MOD_SPATIALITE;
+      } else if (process.env.DEVELOPMENT) {
+        spatialitePath = path.join('.', 'resources', 'spatialite', 'mac', process.arch, 'mod_spatialite');
+      } else if (process.platform === 'mac') {
+        spatialitePath = path.join(path.dirname(process.execPath), '..', 'Resources', 'mod_spatialite');
+      } else if (process.platform === 'win32') {
+        spatialitePath = 'mod_spatialite';
+      } else {
+        spatialitePath = path.join(path.dirname(process.execPath), 'mod_spatialite');
+      }
 
       db.database.loadExtension(spatialitePath, (err) => err ? reject(err) : resolve());
     });
