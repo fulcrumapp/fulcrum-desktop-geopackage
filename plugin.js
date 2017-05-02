@@ -116,7 +116,7 @@ export default class {
     await this.run(dropTemplate);
 
     const create = result.sql.replace(tempTableName, this.db.ident(tableName))
-                             .replace('(', ' (\n_id INTEGER PRIMARY KEY AUTOINCREMENT, ');
+                             .replace('(\n', ' (_id INTEGER PRIMARY KEY AUTOINCREMENT, ');
 
     const columnNames = columns.map(o => this.db.ident(o.name));
 
