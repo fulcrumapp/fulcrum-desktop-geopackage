@@ -192,7 +192,7 @@ export default class {
         spatialitePath = process.env.MOD_SPATIALITE;
       } else if (process.env.DEVELOPMENT) {
         spatialitePath = path.join('.', 'resources', 'spatialite', 'mac', process.arch, 'mod_spatialite');
-      } else if (process.platform === 'mac') {
+      } else if (process.platform === 'darwin') {
         spatialitePath = path.join(path.dirname(process.execPath), '..', 'Resources', 'mod_spatialite');
       } else if (process.platform === 'win32') {
         spatialitePath = 'mod_spatialite';
