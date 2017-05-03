@@ -84,7 +84,7 @@ export default class {
   }
 
   updateForm = async (form, account) => {
-    const rawPath = path.join(fulcrum.dir('data'), 'fulcrum.db');
+    const rawPath = fulcrum.databaseFilePath;
 
     await this.run(`ATTACH DATABASE '${rawPath}' as 'app'`);
 
