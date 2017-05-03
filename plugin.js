@@ -191,7 +191,15 @@ export default class {
       if (process.env.MOD_SPATIALITE) {
         spatialitePath = process.env.MOD_SPATIALITE;
       } else if (process.env.DEVELOPMENT) {
-        spatialitePath = path.join('.', 'resources', 'spatialite', 'mac', process.arch, 'mod_spatialite');
+        let platform = 'linux';
+
+        if (process.platform === 'win32') {
+          platform = 'win';
+        } else if (process.platform === 'darwin') {
+          platform = 'mac';
+        }
+
+        spatialitePath = path.join('.', 'resources', 'spatialite', platform, process.arch, 'mod_spatialite');
       } else if (process.platform === 'darwin') {
         spatialitePath = path.join(path.dirname(process.execPath), '..', 'Resources', 'mod_spatialite');
       } else if (process.platform === 'win32') {
