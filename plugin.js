@@ -163,12 +163,14 @@ export default class {
       await this.run(parentSQL);
     }
 
+    const tableNameLiteral = this.db.literal(tableName);
+
     const geomSQL = `
-      DELETE FROM gpkg_geometry_columns WHERE table_name='${tableName}';
+      DELETE FROM gpkg_geometry_columns WHERE table_name='${tableNameLiteral}';
 
       INSERT INTO gpkg_geometry_columns
       (table_name, column_name, geometry_type_name, srs_id, z, m)
-      VALUES ('${tableName}', '_geom', 'POINT', 4326, 0, 0);
+      VALUES ('${tableNameLiteral}', '_geom', 'POINT', 4326, 0, 0);
 
       ALTER TABLE ${this.db.ident(tableName)} ADD _geom BLOB;
 
@@ -176,8 +178,8 @@ export default class {
       SET _geom = gpkgMakePoint(_longitude, _latitude, 4326);
 
       INSERT INTO gpkg_contents (table_name, data_type, identifier, srs_id)
-      SELECT '${tableName}', 'features', '${tableName}', 4326
-      WHERE NOT EXISTS (SELECT 1 FROM gpkg_contents WHERE table_name = '${tableName}');
+      SELECT '${tableNameLiteral}', 'features', '${tableNameLiteral}', 4326
+      WHERE NOT EXISTS (SELECT 1 FROM gpkg_contents WHERE table_name = '${tableNameLiteral}');
     `;
 
     await this.run(geomSQL);
