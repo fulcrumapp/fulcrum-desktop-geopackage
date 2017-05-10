@@ -266,11 +266,9 @@ export default class {
   }
 
   isSpecialTable(tableName) {
-    if (tableName.indexOf('gpkg_') === 0) {
-      return true;
-    }
-
-    if (tableName.indexOf('sqlite_') === 0) {
+    if (tableName.indexOf('gpkg_') === 0 ||
+          tableName.indexOf('sqlite_') === 0 ||
+          tableName.indexOf('custom_') === 0) {
       return true;
     }
 
