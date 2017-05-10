@@ -88,15 +88,17 @@ export default class {
 
     await this.run(`ATTACH DATABASE '${rawPath}' as 'app'`);
 
-    await this.updateTable(form.name, `account_${account.rowID}_form_${form.rowID}_view_full`, null);
+    await this.updateTable(this.getFriendlyTableName(form), `account_${account.rowID}_form_${form.rowID}_view_full`, null);
 
     for (const repeatable of form.elementsOfType('Repeatable')) {
-      const tableName = `${form.name} - ${repeatable.dataName}`;
+      const tableName = this.getFriendlyTableName(form, repeatable);
 
       await this.updateTable(tableName, `account_${account.rowID}_form_${form.rowID}_${repeatable.key}_view_full`, repeatable);
     }
 
     await this.run(`DETACH DATABASE 'app'`);
+
+    await this.cleanupTables(form, account);
   }
 
   updateTable = async (tableName, sourceTableName, repeatable) => {
@@ -236,5 +238,52 @@ export default class {
     }
 
     console.log(JSON.stringify(result));
+  }
+
+  async cleanupTables(form, account) {
+    await this.reloadTableList();
+
+    const tableNames = [];
+
+    const forms = await account.findActiveForms({});
+
+    for (const form of forms) {
+      tableNames.push(this.getFriendlyTableName(form));
+
+      for (const repeatable of form.elementsOfType('Repeatable')) {
+        const tableName = this.getFriendlyTableName(form, repeatable);
+
+        tableNames.push(tableName);
+      }
+    }
+
+    // find any tables that should be dropped because they got renamed
+    for (const existingTableName of this.tableNames) {
+      if (tableNames.indexOf(existingTableName) === -1 && !this.isSpecialTable(existingTableName)) {
+        await this.run(`DROP TABLE IF EXISTS ${this.db.ident(existingTableName)};`);
+      }
+    }
+  }
+
+  isSpecialTable(tableName) {
+    if (tableName.indexOf('gpkg_') === 0) {
+      return true;
+    }
+
+    if (tableName.indexOf('sqlite_') === 0) {
+      return true;
+    }
+
+    return false;
+  }
+
+  async reloadTableList() {
+    const rows = await this.db.all("SELECT tbl_name AS name FROM sqlite_master WHERE type = 'table';");
+
+    this.tableNames = rows.map(o => o.name);
+  }
+
+  getFriendlyTableName(form, repeatable) {
+    return repeatable ? `${form.name} - ${repeatable.dataName}` : form.name;
   }
 }
