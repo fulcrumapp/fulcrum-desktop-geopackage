@@ -12,8 +12,13 @@ export default class {
           required: true,
           type: 'string'
         },
-        gpkgname: {
+        gpkgName: {
           desc: 'database name',
+          required: false,
+          type: 'string'
+        },
+        gpkgPath: {
+          desc: 'database directory',
           required: false,
           type: 'string'
         },
@@ -58,10 +63,11 @@ export default class {
 
     fulcrum.mkdirp('geopackage');
 
-    const databaseName = fulcrum.args.gpkgname || fulcrum.args.org;
+    const databaseName = fulcrum.args.gpkgName || fulcrum.args.org;
+    const databaseDirectory = fulcrum.args.gpkgPath || fulcrum.dir('geopackage');
 
     const options = {
-      file: path.join(fulcrum.dir('geopackage'), databaseName + '.gpkg')
+      file: path.join(databaseDirectory, databaseName + '.gpkg')
     };
 
     this.db = await SQLite.open({...defaultDatabaseOptions, ...options});
