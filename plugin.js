@@ -11,6 +11,17 @@ export default class {
           desc: 'organization name',
           required: true,
           type: 'string'
+        },
+        gpkgname: {
+          desc: 'database name',
+          required: false,
+          type: 'string'
+        },
+        drop: {
+          desc: 'drop tables first',
+          required: false,
+          type: 'boolean',
+          default: true
         }
       },
       handler: this.runCommand
@@ -47,8 +58,10 @@ export default class {
 
     fulcrum.mkdirp('geopackage');
 
+    const databaseName = fulcrum.args.gpkgname || fulcrum.args.org;
+
     const options = {
-      file: path.join(fulcrum.dir('geopackage'), fulcrum.args.org + '.gpkg')
+      file: path.join(fulcrum.dir('geopackage'), databaseName + '.gpkg')
     };
 
     this.db = await SQLite.open({...defaultDatabaseOptions, ...options});
@@ -104,6 +117,8 @@ export default class {
   updateTable = async (tableName, sourceTableName, repeatable) => {
     const tempTableName = sourceTableName + '_tmp';
 
+    let drop = fulcrum.args.drop != null ? fulcrum.args.drop : true;
+
     const dropTemplate = `DROP TABLE IF EXISTS ${this.db.ident(tempTableName)};`;
 
     await this.run(dropTemplate);
@@ -128,16 +143,26 @@ export default class {
       orderBy = 'ORDER BY _child_record_id';
     }
 
+    let prologue = '';
+
+    const existingTable = await this.db.get(`SELECT sql FROM sqlite_master WHERE tbl_name = '${tableName}'`);
+
+    if (drop || !existingTable) {
+      prologue = `
+        DROP TABLE IF EXISTS ${this.db.ident(tableName)};
+
+        ${ create };
+
+        ALTER TABLE ${this.db.ident(tableName)}
+        ADD _created_by_email TEXT;
+
+        ALTER TABLE ${this.db.ident(tableName)}
+        ADD _updated_by_email TEXT;
+      `;
+    }
+
     const allSQL = `
-      DROP TABLE IF EXISTS ${this.db.ident(tableName)};
-
-      ${ create };
-
-      ALTER TABLE ${this.db.ident(tableName)}
-      ADD _created_by_email TEXT;
-
-      ALTER TABLE ${this.db.ident(tableName)}
-      ADD _updated_by_email TEXT;
+      ${ prologue }
 
       INSERT INTO ${this.db.ident(tableName)} (${columnNames.join(', ')}, _created_by_email, _updated_by_email)
       SELECT ${columnNames.map(o => 't.' + o).join(', ')}, mc.email AS _created_by_email, mu.email AS _updated_by_email
@@ -150,12 +175,20 @@ export default class {
     await this.run(allSQL);
 
     if (repeatable == null) {
-      const parentSQL = `
-        ALTER TABLE ${this.db.ident(tableName)}
-        ADD _assigned_to_email TEXT;
+      prologue = '';
 
-        ALTER TABLE ${this.db.ident(tableName)}
-        ADD _project_name TEXT;
+      if (drop || !existingTable) {
+        prologue = `
+          ALTER TABLE ${this.db.ident(tableName)}
+          ADD _assigned_to_email TEXT;
+
+          ALTER TABLE ${this.db.ident(tableName)}
+          ADD _project_name TEXT;
+        `;
+      }
+
+      const parentSQL = `
+        ${ prologue }
 
         UPDATE ${this.db.ident(tableName)}
         SET _assigned_to_email = (SELECT email FROM app.memberships m WHERE m.user_resource_id = ${this.db.ident(tableName)}._assigned_to_id),
@@ -165,26 +198,30 @@ export default class {
       await this.run(parentSQL);
     }
 
-    const tableNameLiteral = this.db.literal(tableName);
+    if (drop || !existingTable) {
+      const tableNameLiteral = this.db.literal(tableName);
 
-    const geomSQL = `
-      DELETE FROM gpkg_geometry_columns WHERE table_name=${tableNameLiteral};
+      const geomSQL = `
+        DELETE FROM gpkg_geometry_columns WHERE table_name=${tableNameLiteral};
 
-      INSERT INTO gpkg_geometry_columns
-      (table_name, column_name, geometry_type_name, srs_id, z, m)
-      VALUES (${tableNameLiteral}, '_geom', 'POINT', 4326, 0, 0);
+        INSERT INTO gpkg_geometry_columns
+        (table_name, column_name, geometry_type_name, srs_id, z, m)
+        VALUES (${tableNameLiteral}, '_geom', 'POINT', 4326, 0, 0);
 
-      ALTER TABLE ${this.db.ident(tableName)} ADD _geom BLOB;
+        ALTER TABLE ${this.db.ident(tableName)} ADD _geom BLOB;
 
+        INSERT INTO gpkg_contents (table_name, data_type, identifier, srs_id)
+        SELECT ${tableNameLiteral}, 'features', ${tableNameLiteral}, 4326
+        WHERE NOT EXISTS (SELECT 1 FROM gpkg_contents WHERE table_name = ${tableNameLiteral});
+      `;
+
+      await this.run(geomSQL);
+    }
+
+    await this.run(`
       UPDATE ${this.db.ident(tableName)}
       SET _geom = gpkgMakePoint(_longitude, _latitude, 4326);
-
-      INSERT INTO gpkg_contents (table_name, data_type, identifier, srs_id)
-      SELECT ${tableNameLiteral}, 'features', ${tableNameLiteral}, 4326
-      WHERE NOT EXISTS (SELECT 1 FROM gpkg_contents WHERE table_name = ${tableNameLiteral});
-    `;
-
-    await this.run(geomSQL);
+    `);
   }
 
   async enableSpatiaLite(db) {
