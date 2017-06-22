@@ -1,5 +1,6 @@
 import path from 'path';
 import { SQLite } from 'fulcrum';
+import snake from 'snake-case';
 
 export default class {
   async task(cli) {
@@ -22,8 +23,26 @@ export default class {
           required: false,
           type: 'string'
         },
-        drop: {
+        gpkgDrop: {
           desc: 'drop tables first',
+          required: false,
+          type: 'boolean',
+          default: true
+        },
+        gpkgUnderscoreNames: {
+          desc: 'use underscore names (e.g. "Park Inspections" becomes "park_inspections")',
+          required: false,
+          type: 'boolean',
+          default: false
+        },
+        gpkgUserInfo: {
+          desc: 'include user info',
+          required: false,
+          type: 'boolean',
+          default: true
+        },
+        gpkgJoinedNames: {
+          desc: 'include project name and assignment email on record tables',
           required: false,
           type: 'boolean',
           default: true
@@ -123,7 +142,9 @@ export default class {
   updateTable = async (tableName, sourceTableName, repeatable) => {
     const tempTableName = sourceTableName + '_tmp';
 
-    let drop = fulcrum.args.drop != null ? fulcrum.args.drop : true;
+    const includeUserInfo = fulcrum.args.gpkgUserInfo != null ? fulcrum.args.gpkgUserInfo : true;
+
+    let drop = fulcrum.args.gpkgDrop != null ? fulcrum.args.gpkgDrop : true;
 
     const dropTemplate = `DROP TABLE IF EXISTS ${this.db.ident(tempTableName)};`;
 
@@ -149,59 +170,61 @@ export default class {
       orderBy = 'ORDER BY _child_record_id';
     }
 
-    let prologue = '';
-
     const existingTable = await this.db.get(`SELECT sql FROM sqlite_master WHERE tbl_name = '${tableName}'`);
 
+    let sql = [];
+
     if (drop || !existingTable) {
-      prologue = `
-        DROP TABLE IF EXISTS ${this.db.ident(tableName)};
+      let userInfo = '';
 
-        ${ create };
-
-        ALTER TABLE ${this.db.ident(tableName)}
-        ADD _created_by_email TEXT;
-
-        ALTER TABLE ${this.db.ident(tableName)}
-        ADD _updated_by_email TEXT;
-      `;
-    }
-
-    const allSQL = `
-      ${ prologue }
-
-      INSERT INTO ${this.db.ident(tableName)} (${columnNames.join(', ')}, _created_by_email, _updated_by_email)
-      SELECT ${columnNames.map(o => 't.' + o).join(', ')}, mc.email AS _created_by_email, mu.email AS _updated_by_email
-      FROM app.${sourceTableName} t
-      LEFT JOIN memberships mc ON t._created_by_id = mc.user_resource_id
-      LEFT JOIN memberships mu ON t._updated_by_id = mu.user_resource_id
-      ${orderBy};
-    `;
-
-    await this.run(allSQL);
-
-    if (repeatable == null) {
-      prologue = '';
-
-      if (drop || !existingTable) {
-        prologue = `
-          ALTER TABLE ${this.db.ident(tableName)}
-          ADD _assigned_to_email TEXT;
-
-          ALTER TABLE ${this.db.ident(tableName)}
-          ADD _project_name TEXT;
-        `;
+      if (includeUserInfo) {
+        sql.push(`ALTER TABLE ${this.db.ident(tableName)} ADD _created_by_email TEXT;`);
+        sql.push(`ALTER TABLE ${this.db.ident(tableName)} ADD _updated_by_email TEXT;`);
       }
 
-      const parentSQL = `
-        ${ prologue }
+      sql.push(`DROP TABLE IF EXISTS ${this.db.ident(tableName)};`);
 
+      sql.push(create + ';');
+    }
+
+    if (includeUserInfo) {
+      sql.push(`
+        INSERT INTO ${this.db.ident(tableName)} (${columnNames.join(', ')}, _created_by_email, _updated_by_email)
+        SELECT ${columnNames.map(o => 't.' + o).join(', ')}, mc.email AS _created_by_email, mu.email AS _updated_by_email
+        FROM app.${sourceTableName} t
+        LEFT JOIN memberships mc ON t._created_by_id = mc.user_resource_id
+        LEFT JOIN memberships mu ON t._updated_by_id = mu.user_resource_id
+        ${orderBy};
+      `);
+    } else {
+      sql.push(`
+        INSERT INTO ${this.db.ident(tableName)} (${columnNames.join(', ')})
+        SELECT ${columnNames.map(o => 't.' + o).join(', ')}
+        FROM app.${sourceTableName} t
+        ${orderBy};
+      `);
+    }
+
+    await this.run(sql.join('\n'));
+
+    sql = [];
+
+    const includeJoinedNames = fulcrum.args.gpkgJoinedNames != null ? fulcrum.args.gpkgJoinedNames : true;
+
+    if (repeatable == null && includeJoinedNames) {
+      if (drop || !existingTable) {
+        sql.push(`ALTER TABLE ${this.db.ident(tableName)} ADD _assigned_to_email TEXT;`);
+        sql.push(`ALTER TABLE ${this.db.ident(tableName)} ADD _project_name TEXT;`);
+      }
+
+
+      sql.push(`
         UPDATE ${this.db.ident(tableName)}
         SET _assigned_to_email = (SELECT email FROM app.memberships m WHERE m.user_resource_id = ${this.db.ident(tableName)}._assigned_to_id),
         _project_name = (SELECT name FROM app.projects p WHERE p.resource_id = ${this.db.ident(tableName)}._project_id);
-      `;
+      `);
 
-      await this.run(parentSQL);
+      await this.run(sql.join('\n'));
     }
 
     if (drop || !existingTable) {
@@ -325,6 +348,8 @@ export default class {
   }
 
   getFriendlyTableName(form, repeatable) {
-    return repeatable ? `${form.name} - ${repeatable.dataName}` : form.name;
+    const name = repeatable ? `${form.name} - ${repeatable.dataName}` : form.name;
+
+    return fulcrum.args.gpkgUnderscoreNames ? snake(name) : name;
   }
 }
