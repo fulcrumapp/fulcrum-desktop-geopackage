@@ -136,7 +136,11 @@ export default class {
 
     await this.run(`DETACH DATABASE 'app'`);
 
-    await this.cleanupTables(form, account);
+    const drop = fulcrum.args.gpkgDrop != null ? fulcrum.args.gpkgDrop : true;
+
+    if (drop) {
+      await this.cleanupTables(form, account);
+    }
   }
 
   updateTable = async (tableName, sourceTableName, repeatable) => {
