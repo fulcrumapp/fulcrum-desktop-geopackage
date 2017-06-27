@@ -150,7 +150,7 @@ export default class {
 
     let drop = fulcrum.args.gpkgDrop != null ? fulcrum.args.gpkgDrop : true;
 
-    const dropTemplate = `DROP TABLE IF EXISTS ${this.db.ident(tempTableName)};`;
+    const dropTemplate = `DROP TABLE IF EXISTS main.${this.db.ident(tempTableName)};`;
 
     await this.run(dropTemplate);
 
@@ -186,7 +186,7 @@ export default class {
         sql.push(`ALTER TABLE ${this.db.ident(tableName)} ADD _updated_by_email TEXT;`);
       }
 
-      sql.push(`DROP TABLE IF EXISTS ${this.db.ident(tableName)};`);
+      sql.push(`DROP TABLE IF EXISTS main.${this.db.ident(tableName)};`);
 
       sql.push(create + ';');
     }
@@ -330,7 +330,7 @@ export default class {
     // find any tables that should be dropped because they got renamed
     for (const existingTableName of this.tableNames) {
       if (tableNames.indexOf(existingTableName) === -1 && !this.isSpecialTable(existingTableName)) {
-        await this.run(`DROP TABLE IF EXISTS ${this.db.ident(existingTableName)};`);
+        await this.run(`DROP TABLE IF EXISTS main.${this.db.ident(existingTableName)};`);
       }
     }
   }
