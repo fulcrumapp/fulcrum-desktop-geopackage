@@ -93,8 +93,8 @@ export default class {
 
     await this.enableSpatiaLite(this.db);
 
-    fulcrum.on('form:save', this.onFormSave);
-    fulcrum.on('records:finish', this.onRecordsFinished);
+    // fulcrum.on('form:save', this.onFormSave);
+    // fulcrum.on('records:finish', this.onRecordsFinished);
   }
 
   async deactivate() {
