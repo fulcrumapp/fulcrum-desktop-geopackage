@@ -106,6 +106,10 @@ export default class {
   run = (sql) => {
     sql = sql.replace(/\0/g, '');
 
+    if (fulcrum.args.debug) {
+      console.log(sql);
+    }
+
     return this.db.execute(sql);
   }
 
