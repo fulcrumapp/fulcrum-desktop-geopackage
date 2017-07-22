@@ -71,6 +71,8 @@ export default class {
     } else {
       console.error('Unable to find account', fulcrum.args.org);
     }
+
+    await this.run('VACUUM');
   }
 
   async activate() {
