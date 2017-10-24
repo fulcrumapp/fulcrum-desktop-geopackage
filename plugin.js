@@ -187,14 +187,14 @@ export default class {
     if (drop || !existingTable) {
       let userInfo = '';
 
+      sql.push(`DROP TABLE IF EXISTS main.${this.db.ident(tableName)};`);
+
+      sql.push(create + ';');
+
       if (includeUserInfo) {
         sql.push(`ALTER TABLE ${this.db.ident(tableName)} ADD _created_by_email TEXT;`);
         sql.push(`ALTER TABLE ${this.db.ident(tableName)} ADD _updated_by_email TEXT;`);
       }
-
-      sql.push(`DROP TABLE IF EXISTS main.${this.db.ident(tableName)};`);
-
-      sql.push(create + ';');
     }
 
     if (includeUserInfo) {
