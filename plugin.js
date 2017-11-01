@@ -46,6 +46,12 @@ export default class {
           required: false,
           type: 'boolean',
           default: true
+        },
+        includeFormattedDates: {
+          desc: 'format dates from unixepoch to YYYY-MM-DD HH:MM:SS',
+          required: false,
+          type: 'boolean',
+          default: true
         }
       },
       handler: this.runCommand
@@ -152,6 +158,8 @@ export default class {
   updateTable = async (tableName, sourceTableName, repeatable) => {
     const tempTableName = sourceTableName + '_tmp';
 
+    const includeFormattedDates = fulcrum.args.includeFormattedDates != null ? fulcrum.args.includeFormattedDates : true;
+
     const includeUserInfo = fulcrum.args.gpkgUserInfo != null ? fulcrum.args.gpkgUserInfo : true;
 
     let drop = fulcrum.args.gpkgDrop != null ? fulcrum.args.gpkgDrop : true;
@@ -212,6 +220,15 @@ export default class {
         SELECT ${columnNames.map(o => 't.' + o).join(', ')}
         FROM app.${sourceTableName} t
         ${orderBy};
+      `);
+    }
+
+    if (includeFormattedDates) {
+      sql.push(`
+        UPDATE ${this.db.ident(tableName)} SET _created_at = strftime('%Y-%m-%d %H:%M:%S', _created_at / 1000, 'unixepoch');
+        UPDATE ${this.db.ident(tableName)} SET _updated_at = strftime('%Y-%m-%d %H:%M:%S', _updated_at / 1000, 'unixepoch');
+        UPDATE ${this.db.ident(tableName)} SET _server_created_at = strftime('%Y-%m-%d %H:%M:%S', _server_created_at / 1000, 'unixepoch');
+        UPDATE ${this.db.ident(tableName)} SET _server_updated_at = strftime('%Y-%m-%d %H:%M:%S', _server_updated_at / 1000, 'unixepoch');
       `);
     }
 
