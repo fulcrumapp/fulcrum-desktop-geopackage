@@ -225,14 +225,10 @@ export default class {
 
     if (includeFormattedDates) {
       sql.push(`
-        ALTER TABLE ${this.db.ident(tableName)} ADD _created_at_formatted TEXT;
-        ALTER TABLE ${this.db.ident(tableName)} ADD _updated_at_formatted TEXT;
-        ALTER TABLE ${this.db.ident(tableName)} ADD _server_created_at_formatted TEXT;
-        ALTER TABLE ${this.db.ident(tableName)} ADD _server_updated_at_formatted TEXT;
-        UPDATE ${this.db.ident(tableName)} SET _created_at_formatted = strftime('%Y-%m-%d %H:%M:%S', _created_at / 1000, 'unixepoch');
-        UPDATE ${this.db.ident(tableName)} SET _updated_at_formatted = strftime('%Y-%m-%d %H:%M:%S', _updated_at / 1000, 'unixepoch');
-        UPDATE ${this.db.ident(tableName)} SET _server_created_at_formatted = strftime('%Y-%m-%d %H:%M:%S', _server_created_at / 1000, 'unixepoch');
-        UPDATE ${this.db.ident(tableName)} SET _server_updated_at_formatted = strftime('%Y-%m-%d %H:%M:%S', _server_updated_at / 1000, 'unixepoch');
+        UPDATE ${this.db.ident(tableName)} SET _created_at = strftime('%Y-%m-%d %H:%M:%S', _created_at / 1000, 'unixepoch');
+        UPDATE ${this.db.ident(tableName)} SET _updated_at = strftime('%Y-%m-%d %H:%M:%S', _updated_at / 1000, 'unixepoch');
+        UPDATE ${this.db.ident(tableName)} SET _server_created_at = strftime('%Y-%m-%d %H:%M:%S', _server_created_at / 1000, 'unixepoch');
+        UPDATE ${this.db.ident(tableName)} SET _server_updated_at = strftime('%Y-%m-%d %H:%M:%S', _server_updated_at / 1000, 'unixepoch');
       `);
     }
 
